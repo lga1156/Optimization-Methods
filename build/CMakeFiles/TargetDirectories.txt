@@ -1,0 +1,3 @@
+/Users/nikolai/study/Optimization-Methods/build/CMakeFiles/validate.dir
+/Users/nikolai/study/Optimization-Methods/build/CMakeFiles/edit_cache.dir
+/Users/nikolai/study/Optimization-Methods/build/CMakeFiles/rebuild_cache.dir
