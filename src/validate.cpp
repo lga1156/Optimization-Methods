@@ -12,53 +12,66 @@
 struct ValidationResult {
     int totalBranches, filledBranches, emptyBranches, branchLength;
     std::map<char, int> birdCounts;
-    bool isLengthUniform, areCountsCorrect;
+    bool isLengthUniform, areCountsCorrect, hasStructure, exceedsMaxBranches, exceedsMaxBranchLength;
     char firstFailingBird;
     std::string filename;
+    std::string errorMessage;
 };
 
 
 // Функция для форматированного вывода результатов валидации
 void logResults(std::ostream& out, const ValidationResult& result) {
-    out << "==================================================\n\n"
-        << "    Проверка файла: " << result.filename << "\n"
-        << "    Количество веток: " << result.totalBranches << "\n"
-        << "    Количество заполненных веток: " << result.filledBranches << "\n"
-        << "    Количество пустых веток: " << result.emptyBranches << "\n\n";
-
-    if (!result.birdCounts.empty()) {
-        out << "------------------------------\n  Птица  Количество\n";
-        int i = 0;
-        for (const auto& [bird, count] : result.birdCounts) {
-            out << std::left << std::setw(2) << i++ << "     " 
-                << std::setw(6) << bird << std::setw(10) << count << "\n";
-        }
-        out << "------------------------------\n\n";
+    out << "============================================================\n";
+    out << "Проверка файла: " << result.filename << "\n";
+    out << "→ Анализ структуры файла...\n";
+    
+    if (result.hasStructure) {
+        out << "✅ Структура файла корректна (блоки найдены).\n";
+    } else {
+        out << "❌ Ошибка структуры файла.\n";
     }
-
-    out << "    Длина заполненных веток: [" << (result.isLengthUniform ? "True" : "False") << ", "
-        << (result.isLengthUniform ? std::to_string(result.branchLength) : "None") << "]\n"
-        << "    Кратность птиц одного типа: [" << (result.areCountsCorrect ? "True" : "False");
     
-    if (!result.areCountsCorrect && result.firstFailingBird != '\0')
-        out << ", '" << result.firstFailingBird << "'";
-    else if (!result.areCountsCorrect)
-        out << ", None";
+    // Проверка количества веток
+    if (result.exceedsMaxBranches) {
+        out << "❌ Количество веток: " << result.totalBranches << " (превышает норму ≤ 1000)\n";
+    } else {
+        out << "✅ Количество веток: " << result.totalBranches << " (норма ≤ 1000)\n";
+    }
     
-    out << "]\n\n"
-        << "ФАЙЛ " << result.filename << " " 
-        << (result.isLengthUniform && result.areCountsCorrect ? "КОРРЕКТНЫЙ" : "НЕКОРРЕКТНЫЙ") << "\n"
-        << "==================================================\n";
+    out << "→ Проверка содержимого блока DATA...\n";
+    
+    // Проверка длины веток
+    if (result.exceedsMaxBranchLength) {
+        out << "❌ Ошибка: на ветке больше 26 птиц -> " << result.branchLength << "\n";
+    } else if (!result.isLengthUniform) {
+        out << "❌ Ошибка: ветки имеют разную длину\n";
+    } else {
+        out << "✅ Все ветки одинаковой длины: N = " << result.branchLength << "\n";
+        
+        // Проверка кратности только если длина корректна
+        if (result.areCountsCorrect) {
+            out << "✅ Количество птиц каждого типа кратно N.\n";
+            out << "✅ Все проверки пройдены успешно.\n";
+            out << "Результат: OK\n";
+        } else if (result.firstFailingBird != '\0') {
+            int count = result.birdCounts.at(result.firstFailingBird);
+            out << "❌ Ошибка: количество птиц '" << result.firstFailingBird 
+                << "' (" << count << ") не кратно N=" << result.branchLength << "\n";
+        }
+    }
+    
+    out << "============================================================\n";
 }
 
 
 // Основная функция обработки и валидации файла
 ValidationResult processFile(const std::string& filename) {
-    ValidationResult result = {0, 0, 0, -1, {}, true, true, '\0', filename};
+    ValidationResult result = {0, 0, 0, -1, {}, true, true, true, false, false, '\0', filename, ""};
     
     std::ifstream inputFile(filename);
     if (!inputFile.is_open()) {
         std::cerr << "Ошибка: не удалось открыть файл " << filename << std::endl;
+        result.hasStructure = false;
         return result;
     }
 
@@ -108,13 +121,27 @@ ValidationResult processFile(const std::string& filename) {
         result.branchLength = 0;
     }
 
+    // Проверка начальных условий задачи
+    // 1. Количество веток не должно превышать 1000
+    if (result.totalBranches > 1000) {
+        result.areCountsCorrect = false;
+        result.exceedsMaxBranches = true;
+    }
+    
+    // 2. Длина ветки (количество птиц на одной ветке) не должна превышать 26
+    if (result.branchLength > 26) {
+        result.areCountsCorrect = false;
+        result.isLengthUniform = false;
+        result.exceedsMaxBranchLength = true;
+    }
+
     // Подсчет количества птиц каждого вида
     for (const auto& branch : filledBranches)
         for (char bird : branch)
             result.birdCounts[bird]++;
 
     // Проверка кратности количества птиц длине ветки
-    if (result.isLengthUniform && result.branchLength > 0) {
+    if (result.isLengthUniform && result.branchLength > 0 && result.branchLength <= 26) {
         for (const auto& [bird, count] : result.birdCounts) {
             if (count % result.branchLength != 0) {
                 result.areCountsCorrect = false;
